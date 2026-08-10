@@ -74,6 +74,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ArbiterConfig 
     );
   }
 
+  const corsOrigin = env.CORS_ORIGIN ?? "*";
+  if (corsOrigin === "*" && nodeEnv === "production") {
+    throw new ConfigError(
+      `CORS_ORIGIN must be set to a real origin in production — refusing the "*" default ` +
+        `(security-audit.md M2). Set CORS_ORIGIN explicitly to your frontend's origin.`,
+    );
+  }
+
   return {
     port: Number(env.PORT ?? 4100),
     network,
@@ -81,12 +89,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ArbiterConfig 
     rpcUrl,
     databaseUrl,
     nodeEnv,
-    corsOrigin: env.CORS_ORIGIN ?? "*",
-    maxAutoSettleStake: BigInt(env.MAX_AUTO_SETTLE_STAKE ?? "10000000000"), // 1000.0000000 (7dp)
-    maxPayout: BigInt(env.MAX_PAYOUT ?? "50000000000"), // 5000.0000000 (7dp)
+    corsOrigin,
+    maxAutoSettleStake: parsePositiveBigInt(env, "MAX_AUTO_SETTLE_STAKE", "10000000000"), // 1000.0000000 (7dp)
+    maxPayout: parsePositiveBigInt(env, "MAX_PAYOUT", "50000000000"), // 5000.0000000 (7dp)
   };
 }
 
 function isNetwork(value: string): value is Network {
   return value === "testnet" || value === "mainnet" || value === "futurenet" || value === "local";
+}
+
+function parsePositiveBigInt(env: NodeJS.ProcessEnv, key: string, fallback: string): bigint {
+  const raw = env[key] ?? fallback;
+  if (!/^[0-9]+$/.test(raw)) {
+    throw new ConfigError(`${key} must be a non-negative integer string, got "${raw}"`);
+  }
+  return BigInt(raw);
 }

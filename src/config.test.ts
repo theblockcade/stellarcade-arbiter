@@ -52,10 +52,40 @@ describe("loadConfig", () => {
     expect(() => loadConfig(baseEnv({ NODE_ENV: "development" }))).not.toThrow();
   });
 
-  it("accepts DATABASE_URL in production", () => {
+  it("accepts DATABASE_URL and an explicit CORS_ORIGIN in production", () => {
     const config = loadConfig(
-      baseEnv({ NODE_ENV: "production", DATABASE_URL: "postgres://user:pass@host:5432/db" }),
+      baseEnv({
+        NODE_ENV: "production",
+        DATABASE_URL: "postgres://user:pass@host:5432/db",
+        CORS_ORIGIN: "https://theblockcade.xyz",
+      }),
     );
     expect(config.databaseUrl).toBe("postgres://user:pass@host:5432/db");
+    expect(config.corsOrigin).toBe("https://theblockcade.xyz");
+  });
+
+  it("rejects a wildcard CORS_ORIGIN in production", () => {
+    expect(() =>
+      loadConfig(
+        baseEnv({
+          NODE_ENV: "production",
+          DATABASE_URL: "postgres://user:pass@host:5432/db",
+        }),
+      ),
+    ).toThrow(/CORS_ORIGIN must be set/);
+  });
+
+  it("allows the wildcard CORS_ORIGIN default outside production", () => {
+    const config = loadConfig(baseEnv());
+    expect(config.corsOrigin).toBe("*");
+  });
+
+  it("rejects a non-numeric MAX_PAYOUT", () => {
+    expect(() => loadConfig(baseEnv({ MAX_PAYOUT: "not-a-number" }))).toThrow(/must be a non-negative integer/);
+  });
+
+  it("accepts a numeric MAX_AUTO_SETTLE_STAKE override", () => {
+    const config = loadConfig(baseEnv({ MAX_AUTO_SETTLE_STAKE: "42" }));
+    expect(config.maxAutoSettleStake).toBe(42n);
   });
 });
