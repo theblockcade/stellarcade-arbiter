@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: arbiter
+          POSTGRES_PASSWORD: arbiter
+          POSTGRES_DB: arbiter
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U arbiter"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Apply migrations
+        run: PGPASSWORD=arbiter psql -h localhost -p 5433 -U arbiter -d arbiter -f migrations/001_init.sql
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+        env:
+          DATABASE_URL: postgres://arbiter:arbiter@localhost:5433/arbiter
+          # The Postgres integration suite (store-postgres.test.ts) must
+          # ACTUALLY RUN in CI, not silently skip if the service container
+          # ever goes missing — this is what proves the settlement
+          # idempotency guarantee under real concurrent connections, not
+          # just single-process JS scheduling.
+          CI_REQUIRE_DB: "1"
+
+      - name: Build
+        run: npm run build
