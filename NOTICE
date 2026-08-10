@@ -1,0 +1,13 @@
+stellarcade-arbiter
+Copyright the TheBlockCade authors.
+
+This product includes software developed as part of the TheBlockCade project
+(https://github.com/TheBlockCade).
+
+Portions of this project's repository structure, configuration conventions
+(network cross-check gating, CI database-required testing, deploy blueprint
+shape) are derived from the Vellar Wallet project
+(https://github.com/Vellar-Wallet/vellar-facilitator), Copyright the Vellar
+authors, licensed under the Apache License, Version 2.0. No Vellar product
+code, brand assets, or copy are included; the derivation is limited to
+repository shape, tooling patterns, and structural conventions.
