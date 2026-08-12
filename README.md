@@ -16,6 +16,11 @@ checkable: commit-reveal randomness, an append-only hash-chained audit log,
 and a dispute-replay path that reconstructs any settled round from its
 published proof alone, without trusting the arbiter's live database.
 
+## 🌐 Live Deployment
+- **Live Arbiter Endpoint**: `https://stellarcade-arbiter.onrender.com`
+- **Liveness Check**: `https://stellarcade-arbiter.onrender.com/health`
+- **Database**: PostgreSQL (`stellarcade-arbiter-db`) on Render
+
 ## Endpoints
 
 | Method | Path | Purpose |
