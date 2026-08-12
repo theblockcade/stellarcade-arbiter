@@ -39,3 +39,12 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 CREATE INDEX IF NOT EXISTS idx_commitments_game_id ON commitments(game_id);
 CREATE INDEX IF NOT EXISTS idx_commitments_status ON commitments(status);
+
+-- Discord and Telegram bot wallet links
+CREATE TABLE IF NOT EXISTS bot_links (
+  platform       TEXT NOT NULL,
+  user_id        TEXT NOT NULL,
+  wallet_address TEXT NOT NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (platform, user_id)
+);
