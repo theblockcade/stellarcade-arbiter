@@ -17,6 +17,14 @@ services:
     # is drawn from.
     autoDeploy: false
     healthCheckPath: /health
+    # Runs before each new instance starts serving. migrations/001_init.sql
+    # is entirely CREATE TABLE/INDEX IF NOT EXISTS, so re-running it on
+    # every deploy is safe — there's no separate migration-tracking table.
+    # Without this, the service boots fine (health check doesn't touch the
+    # DB) but every DB-backed route 500s on a fresh database, since nothing
+    # else in this Blueprint ever created commitments/settlements/
+    # audit_log/bot_links.
+    preDeployCommand: npm run migrate
     envVars:
       - key: NODE_ENV
         value: "production"
