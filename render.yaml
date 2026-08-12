@@ -17,14 +17,13 @@ services:
     # is drawn from.
     autoDeploy: false
     healthCheckPath: /health
-    # Runs before each new instance starts serving. migrations/001_init.sql
-    # is entirely CREATE TABLE/INDEX IF NOT EXISTS, so re-running it on
-    # every deploy is safe — there's no separate migration-tracking table.
-    # Without this, the service boots fine (health check doesn't touch the
-    # DB) but every DB-backed route 500s on a fresh database, since nothing
-    # else in this Blueprint ever created commitments/settlements/
-    # audit_log/bot_links.
-    preDeployCommand: npm run migrate
+    # Migrations run as part of the Docker image's own CMD (see Dockerfile),
+    # not via preDeployCommand here — that field is a paid-plan feature and
+    # is a silent no-op on `plan: free` (confirmed live: a deploy with it
+    # set produced zero trace of it running anywhere in the logs). If this
+    # service is ever upgraded off the free plan, preDeployCommand becomes
+    # the better place for this — it runs once per deploy rather than once
+    # per container start — but until then, CMD is what actually works.
     envVars:
       - key: NODE_ENV
         value: "production"
