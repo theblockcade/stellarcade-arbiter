@@ -26,6 +26,17 @@ export interface ArbiterConfig {
   maxAutoSettleStake: bigint;
   /** Global per-round payout ceiling — enforced by policy.ts regardless of pool balance. */
   maxPayout: bigint;
+  /**
+   * Keys accepted on the `x-api-key` header for the two mutating endpoints
+   * (`/games/:gameId/commit`, `/rounds/:roundId/settle`) — see
+   * `docs/security-audit.md` H1. `/verify`, `/proofs/:id`, `/audit/verify`,
+   * and `/health` stay public by design; they're read-only proof-checking.
+   * Empty outside production so existing local/test workflows are unaffected.
+   */
+  apiKeys: string[];
+  /** Per-IP request ceiling on the mutating endpoints — security-audit.md M1. */
+  rateLimitMax: number;
+  rateLimitWindowMs: number;
 }
 
 function requireEnv(env: NodeJS.ProcessEnv, key: string): string {
@@ -45,7 +56,9 @@ function requireEnv(env: NodeJS.ProcessEnv, key: string): string {
  * against the wrong ledger, so this fails loudly at boot rather than
  * quietly limping along on a mismatched pair.
  */
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): ArbiterConfig {
+export function loadConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): ArbiterConfig {
   const networkRaw = requireEnv(env, "STELLAR_NETWORK");
   if (!isNetwork(networkRaw)) {
     throw new ConfigError(
@@ -54,7 +67,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ArbiterConfig 
   }
   const network = networkRaw;
 
-  const networkPassphrase = env.STELLAR_NETWORK_PASSPHRASE ?? NETWORK_PASSPHRASES[network];
+  const networkPassphrase =
+    env.STELLAR_NETWORK_PASSPHRASE ?? NETWORK_PASSPHRASES[network];
   if (networkPassphrase !== NETWORK_PASSPHRASES[network]) {
     throw new ConfigError(
       `STELLAR_NETWORK_PASSPHRASE does not match STELLAR_NETWORK="${network}". ` +
@@ -82,6 +96,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ArbiterConfig 
     );
   }
 
+  const apiKeys = (env.ARBITER_API_KEYS ?? "")
+    .split(",")
+    .map((key) => key.trim())
+    .filter((key) => key.length > 0);
+
+  if (apiKeys.length === 0 && nodeEnv === "production") {
+    throw new ConfigError(
+      `ARBITER_API_KEYS must be set in production — refusing to boot with the two mutating ` +
+        `endpoints (/games/:gameId/commit, /rounds/:roundId/settle) unauthenticated ` +
+        `(security-audit.md H1). Set a comma-separated list of at least one key.`,
+    );
+  }
+
   return {
     port: Number(env.PORT ?? 4100),
     network,
@@ -90,19 +117,37 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ArbiterConfig 
     databaseUrl,
     nodeEnv,
     corsOrigin,
-    maxAutoSettleStake: parsePositiveBigInt(env, "MAX_AUTO_SETTLE_STAKE", "10000000000"), // 1000.0000000 (7dp)
+    maxAutoSettleStake: parsePositiveBigInt(
+      env,
+      "MAX_AUTO_SETTLE_STAKE",
+      "10000000000",
+    ), // 1000.0000000 (7dp)
     maxPayout: parsePositiveBigInt(env, "MAX_PAYOUT", "50000000000"), // 5000.0000000 (7dp)
+    apiKeys,
+    rateLimitMax: Number(env.RATE_LIMIT_MAX ?? 30),
+    rateLimitWindowMs: Number(env.RATE_LIMIT_WINDOW_MS ?? 60_000),
   };
 }
 
 function isNetwork(value: string): value is Network {
-  return value === "testnet" || value === "mainnet" || value === "futurenet" || value === "local";
+  return (
+    value === "testnet" ||
+    value === "mainnet" ||
+    value === "futurenet" ||
+    value === "local"
+  );
 }
 
-function parsePositiveBigInt(env: NodeJS.ProcessEnv, key: string, fallback: string): bigint {
+function parsePositiveBigInt(
+  env: NodeJS.ProcessEnv,
+  key: string,
+  fallback: string,
+): bigint {
   const raw = env[key] ?? fallback;
   if (!/^[0-9]+$/.test(raw)) {
-    throw new ConfigError(`${key} must be a non-negative integer string, got "${raw}"`);
+    throw new ConfigError(
+      `${key} must be a non-negative integer string, got "${raw}"`,
+    );
   }
   return BigInt(raw);
 }

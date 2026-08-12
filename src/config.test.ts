@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ConfigError, loadConfig } from "./config.js";
 
-function baseEnv(overrides: Partial<NodeJS.ProcessEnv> = {}): NodeJS.ProcessEnv {
+function baseEnv(
+  overrides: Partial<NodeJS.ProcessEnv> = {},
+): NodeJS.ProcessEnv {
   return {
     STELLAR_NETWORK: "testnet",
     STELLAR_RPC_URL: "https://soroban-testnet.stellar.org",
@@ -24,7 +26,9 @@ describe("loadConfig", () => {
   });
 
   it("throws when STELLAR_NETWORK is not a recognized value", () => {
-    expect(() => loadConfig(baseEnv({ STELLAR_NETWORK: "devnet" }))).toThrow(ConfigError);
+    expect(() => loadConfig(baseEnv({ STELLAR_NETWORK: "devnet" }))).toThrow(
+      ConfigError,
+    );
   });
 
   it("throws when the passphrase does not match the network", () => {
@@ -45,23 +49,41 @@ describe("loadConfig", () => {
   });
 
   it("requires DATABASE_URL outside development/test", () => {
-    expect(() => loadConfig(baseEnv({ NODE_ENV: "production" }))).toThrow(/DATABASE_URL is required/);
+    expect(() => loadConfig(baseEnv({ NODE_ENV: "production" }))).toThrow(
+      /DATABASE_URL is required/,
+    );
   });
 
   it("allows missing DATABASE_URL in development", () => {
-    expect(() => loadConfig(baseEnv({ NODE_ENV: "development" }))).not.toThrow();
+    expect(() =>
+      loadConfig(baseEnv({ NODE_ENV: "development" })),
+    ).not.toThrow();
   });
 
-  it("accepts DATABASE_URL and an explicit CORS_ORIGIN in production", () => {
+  it("accepts DATABASE_URL, an explicit CORS_ORIGIN, and ARBITER_API_KEYS in production", () => {
     const config = loadConfig(
       baseEnv({
         NODE_ENV: "production",
         DATABASE_URL: "postgres://user:pass@host:5432/db",
         CORS_ORIGIN: "https://theblockcade.xyz",
+        ARBITER_API_KEYS: "key-one, key-two",
       }),
     );
     expect(config.databaseUrl).toBe("postgres://user:pass@host:5432/db");
     expect(config.corsOrigin).toBe("https://theblockcade.xyz");
+    expect(config.apiKeys).toEqual(["key-one", "key-two"]);
+  });
+
+  it("rejects missing ARBITER_API_KEYS in production", () => {
+    expect(() =>
+      loadConfig(
+        baseEnv({
+          NODE_ENV: "production",
+          DATABASE_URL: "postgres://user:pass@host:5432/db",
+          CORS_ORIGIN: "https://theblockcade.xyz",
+        }),
+      ),
+    ).toThrow(/ARBITER_API_KEYS must be set/);
   });
 
   it("rejects a wildcard CORS_ORIGIN in production", () => {
@@ -70,6 +92,7 @@ describe("loadConfig", () => {
         baseEnv({
           NODE_ENV: "production",
           DATABASE_URL: "postgres://user:pass@host:5432/db",
+          ARBITER_API_KEYS: "key-one",
         }),
       ),
     ).toThrow(/CORS_ORIGIN must be set/);
@@ -81,7 +104,9 @@ describe("loadConfig", () => {
   });
 
   it("rejects a non-numeric MAX_PAYOUT", () => {
-    expect(() => loadConfig(baseEnv({ MAX_PAYOUT: "not-a-number" }))).toThrow(/must be a non-negative integer/);
+    expect(() => loadConfig(baseEnv({ MAX_PAYOUT: "not-a-number" }))).toThrow(
+      /must be a non-negative integer/,
+    );
   });
 
   it("accepts a numeric MAX_AUTO_SETTLE_STAKE override", () => {

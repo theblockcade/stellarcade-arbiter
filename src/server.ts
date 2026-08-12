@@ -27,6 +27,9 @@ async function main(): Promise<void> {
     maxPayout: config.maxPayout,
     corsOrigin: config.corsOrigin,
     logger: true,
+    apiKeys: config.apiKeys,
+    rateLimitMax: config.rateLimitMax,
+    rateLimitWindowMs: config.rateLimitWindowMs,
   });
 
   await app.listen({ port: config.port, host: "0.0.0.0" });
@@ -42,9 +45,12 @@ function deriveHorizonUrl(rpcUrl: string): string {
   const explicit = process.env.HORIZON_URL;
   if (explicit) return explicit;
 
-  if (rpcUrl.includes("soroban-testnet")) return "https://horizon-testnet.stellar.org";
-  if (rpcUrl.includes("mainnet.sorobanrpc.com")) return "https://horizon.stellar.org";
-  if (rpcUrl.includes("futurenet")) return "https://horizon-futurenet.stellar.org";
+  if (rpcUrl.includes("soroban-testnet"))
+    return "https://horizon-testnet.stellar.org";
+  if (rpcUrl.includes("mainnet.sorobanrpc.com"))
+    return "https://horizon.stellar.org";
+  if (rpcUrl.includes("futurenet"))
+    return "https://horizon-futurenet.stellar.org";
 
   throw new Error(
     `Could not derive a Horizon URL from STELLAR_RPC_URL="${rpcUrl}". Set HORIZON_URL explicitly.`,
