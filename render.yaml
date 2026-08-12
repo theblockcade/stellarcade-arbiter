@@ -32,6 +32,12 @@ services:
         fromDatabase:
           name: stellarcade-arbiter-db
           property: connectionString
+      # Required — the arbiter refuses to boot in production without this
+      # (security-audit.md H1). Set as a real secret in the Render
+      # dashboard after the Blueprint is synced; sync: false means Render
+      # won't overwrite a manually-set value on redeploy.
+      - key: ARBITER_API_KEYS
+        sync: false
 
 databases:
   - name: stellarcade-arbiter-db
