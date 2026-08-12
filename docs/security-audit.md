@@ -6,14 +6,13 @@ a clean bill of health. Findings are ordered most to least severe.
 
 ## 🟠 HIGH
 
-**H1 — No authentication on any endpoint.** `/games/:gameId/commit`,
-`/rounds/:roundId/settle`, and `/verify` are all open. Anything that can
-reach the service can commit rounds, attempt settlement, or run replay
-checks. For v1 this is mitigated by policy limits (`src/policy.ts`) capping
-stake/payout, but there is no per-caller rate limit or API key requirement.
-**Remediation:** add an API-key or mTLS layer in front of `/rounds/:id/settle`
-before any real funds are involved; `/verify` and `/proofs/:id` can stay
-public since they're read-only proof-checking endpoints by design.
+**H1 — ~~No authentication on any endpoint.~~ Fixed** — `POST
+/games/:gameId/commit` and `POST /rounds/:roundId/settle` now require a
+matching `x-api-key` header when `ARBITER_API_KEYS` is configured
+(required in production; `loadConfig()` refuses to boot without it, same
+enforcement pattern as M2's `CORS_ORIGIN`). `/verify`, `/proofs/:id`, and
+`/audit/verify` stay public by design — read-only proof-checking. See
+`src/app.ts`'s `requireApiKey` and `src/config.ts`.
 
 **H2 — Settlement trusts the caller's claimed stake without on-chain
 verification.** `POST /rounds/:roundId/settle` accepts a `stake` field and
@@ -27,12 +26,12 @@ self-reported number.
 
 ## 🟡 MEDIUM
 
-**M1 — No rate limiting on `/games/:gameId/commit`.** An attacker could spam
-commitments, growing the `commitments` table and (in Postgres) generating
-audit log entries for rounds that never settle. **Remediation:** add
-per-IP/per-API-key rate limiting at the gateway layer (`stellarcade`
-monorepo's `api-gateway` service is the intended place for this — see that
-repo's docs).
+**M1 — ~~No rate limiting on `/games/:gameId/commit`.~~ Fixed** — both
+`/games/:gameId/commit` and `/rounds/:roundId/settle` are now per-IP rate
+limited via `@fastify/rate-limit` (`ARBITER_API_KEYS` config's neighbors
+`RATE_LIMIT_MAX`/`RATE_LIMIT_WINDOW_MS`, default 30 req/min). Implemented
+here rather than at a gateway layer — no `api-gateway` service exists in
+the `stellarcade` monorepo as of this fix.
 
 **M2 — `CORS_ORIGIN` defaults to `*`.** ~~Fine for local dev, wrong for
 production.~~ **Fixed in this pass** — `loadConfig()` now throws a
@@ -70,18 +69,21 @@ Fine at today's scale; will need `sinceSeq` support wired to the HTTP layer
 ## Remediation order
 
 1. H2 (on-chain stake verification) — blocks any real-money deployment.
-2. H1 (authentication) — blocks any public deployment.
-3. M1, M3 — required before mainnet, not before testnet. (M2 fixed.)
+2. ~~H1 (authentication) — blocks any public deployment.~~ Fixed.
+3. M3 — required before mainnet, not before testnet. (M1, M2 fixed.)
 4. L2 — cleanup, no deployment blocker. (L1 fixed.)
 
 ## Closing state (this pass)
 
 M2 and L1 were cheap, mechanical fixes with no design tradeoff, so they were
-fixed immediately rather than left as tracked debt. H1, H2, M1, M3, and L2
-remain open — each needs either a design decision (H1's auth mechanism,
-M1's rate-limit tier) or integration work outside this repo's current scope
-(H2 needs the `prize-pool` contract wired up) and so are left honestly
-unresolved rather than papered over.
+fixed immediately. H1 and M1 were closed in a later pass (API-key auth +
+per-IP rate limiting) once the service was actually being deployed — see
+the H1/M1 entries above for what shipped. H2 and M3 remain open — each
+needs either a design decision (M3's admin-control surface) or integration
+work outside this repo's current scope (H2 needs the `prize-pool` contract
+wired up) and so are left honestly unresolved rather than papered over.
+**H2 in particular still blocks any deployment that touches real funds —
+testnet only until it's closed.**
 
 ## Re-audit trigger
 
