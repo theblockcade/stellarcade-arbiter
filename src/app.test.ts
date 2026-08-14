@@ -37,12 +37,24 @@ function makeAuthedApp(apiKeys: string[]) {
 }
 
 describe("GET /health", () => {
-  it("returns ok", async () => {
-    const { app } = makeApp();
-    const res = await app.inject({ method: "GET", url: "/health" });
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ status: "ok" });
-  });
+  // Higher timeout than the vitest default (5000ms): this is typically the
+  // first app.inject() call in the whole run, which pays a one-time cold
+  // cost for fastify/ajv/avvio module load + JIT + the async plugin boot
+  // sequence (cors, rate-limit, the deferred app.after() registration).
+  // Every other test in this file builds its own app too but reuses that
+  // already-warmed code, so only this one needs the extra headroom, which
+  // matters when many test files are transforming/collecting in parallel
+  // and briefly saturate the CPU.
+  it(
+    "returns ok",
+    async () => {
+      const { app } = makeApp();
+      const res = await app.inject({ method: "GET", url: "/health" });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ status: "ok" });
+    },
+    15_000,
+  );
 });
 
 describe("round lifecycle over HTTP", () => {

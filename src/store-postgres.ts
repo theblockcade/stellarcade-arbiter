@@ -145,7 +145,12 @@ export class PostgresRoundStore implements RoundStore {
       data: row.data,
       prevHash: row.prev_hash,
       hash: row.hash,
-      createdAt: row.created_at,
+      // node-postgres parses TIMESTAMPTZ into a JS Date, not the ISO string
+      // that was hashed at write time (appendAudit uses `new Date().toISOString()`).
+      // Interpolating a Date into a template string calls .toString(), not
+      // .toISOString(), which produces a different string and breaks hash
+      // verification even though nothing was tampered with.
+      createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
     }));
   }
 }
