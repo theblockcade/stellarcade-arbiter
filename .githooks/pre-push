@@ -31,4 +31,30 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+echo "Running dependency audit before push..."
+npm audit --audit-level=high
+
+if [ $? -ne 0 ]; then
+  echo "Dependency audit failed! Push aborted."
+  exit 1
+fi
+
+echo "Running tests before push..."
+# Postgres-backed integration tests (store-postgres.test.ts) auto-skip
+# locally when DATABASE_URL is unset; they still run for real in CI.
+npm test
+
+if [ $? -ne 0 ]; then
+  echo "Tests failed! Push aborted."
+  exit 1
+fi
+
+echo "Running build before push..."
+npm run build
+
+if [ $? -ne 0 ]; then
+  echo "Build failed! Push aborted."
+  exit 1
+fi
+
 echo "All checks passed. Proceeding with push..."
