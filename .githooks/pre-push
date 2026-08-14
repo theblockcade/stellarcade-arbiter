@@ -40,11 +40,50 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Running tests before push..."
-# Postgres-backed integration tests (store-postgres.test.ts) auto-skip
-# locally when DATABASE_URL is unset; they still run for real in CI.
-npm test
 
-if [ $? -ne 0 ]; then
+# store-postgres.test.ts silently skips when DATABASE_URL is unset, which let
+# a real bug (broken audit hash-chain verification) reach CI undetected.
+# Bring up the same Postgres this repo's CI uses (docker-compose.yml) and run
+# the suite the same way CI does, so a green local push means what CI means.
+DB_STARTED_BY_HOOK=0
+COMPOSE_DB_URL="postgres://arbiter:arbiter@localhost:5433/arbiter"
+
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  if ! docker compose ps postgres 2>/dev/null | grep -q "Up"; then
+    echo "Starting local Postgres (docker compose) for integration tests..."
+    docker compose up -d postgres
+
+    if [ $? -ne 0 ]; then
+      echo "Failed to start Postgres via docker compose! Push aborted."
+      exit 1
+    fi
+    DB_STARTED_BY_HOOK=1
+  fi
+
+  echo "Waiting for Postgres to be healthy..."
+  for i in $(seq 1 20); do
+    if docker compose exec -T postgres pg_isready -U arbiter >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+
+  DATABASE_URL="$COMPOSE_DB_URL" CI_REQUIRE_DB=1 npm test
+  TEST_EXIT=$?
+
+  if [ "$DB_STARTED_BY_HOOK" = "1" ]; then
+    docker compose stop postgres >/dev/null 2>&1
+  fi
+else
+  echo "WARNING: Docker not available/running — Postgres integration tests"
+  echo "         (store-postgres.test.ts) will be SKIPPED locally, even"
+  echo "         though CI runs them for real. Start Docker to catch these"
+  echo "         bugs before pushing."
+  npm test
+  TEST_EXIT=$?
+fi
+
+if [ $TEST_EXIT -ne 0 ]; then
   echo "Tests failed! Push aborted."
   exit 1
 fi
